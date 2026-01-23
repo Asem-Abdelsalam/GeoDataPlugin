@@ -1,54 +1,45 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Windows.Forms;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Special;
 using GeoDataPlugin.Models;
 
 namespace GeoDataPlugin.Components
 {
-    public class DataTypeSelector : GH_Component
+    public class OSMDataTypeParameter : GH_ValueList
     {
-        public DataTypeSelector()
-          : base("Data Type Selector", "Type",
-              "Select which type of OSM data to extract",
-              "GeoData", "Query")
+        public OSMDataTypeParameter()
         {
+            Category = "GeoData";
+            SubCategory = "Query";
+            Name = "OSM Data Type";
+            NickName = "Type";
+            Description = "Select OSM data type to query (Buildings, Streets, Parks, Water, Railways, Landuse, Amenities)";
+
+            // Use dropdown mode for cleaner interface
+            ListMode = GH_ValueListMode.DropDown;
+
+            ListItems.Clear();
+
+            // Add all data types with descriptions
+            ListItems.Add(new GH_ValueListItem("Buildings", "0"));
+            ListItems.Add(new GH_ValueListItem("Streets", "1"));
+            ListItems.Add(new GH_ValueListItem("Parks", "2"));
+            ListItems.Add(new GH_ValueListItem("Water", "3"));
+            ListItems.Add(new GH_ValueListItem("Railways", "4"));
+            ListItems.Add(new GH_ValueListItem("Landuse", "5"));
+            ListItems.Add(new GH_ValueListItem("Amenities", "6"));
+            ListItems.Add(new GH_ValueListItem("All Types", "7"));
+
+            // Set default to Buildings
+            SelectItem(0);
         }
 
-        protected override void RegisterInputParams(GH_InputParamManager pManager)
-        {
-            pManager.AddIntegerParameter("Type", "T", "Data type:\n0=Buildings\n1=Streets\n2=Parks\n3=Water\n4=Railways\n5=Landuse\n6=Amenities\n7=All", GH_ParamAccess.item, 0);
-        }
+        public override Guid ComponentGuid => new Guid("d441b373-b4fa-4106-ab38-a6f8359f64d2");
 
-        protected override void RegisterOutputParams(GH_OutputParamManager pManager)
-        {
-            pManager.AddIntegerParameter("Data Type", "Type", "Selected data type (enum value)", GH_ParamAccess.item);
-            pManager.AddTextParameter("Type Name", "Name", "Human-readable type name", GH_ParamAccess.item);
-        }
-
-        protected override void SolveInstance(IGH_DataAccess DA)
-        {
-            int typeIndex = 0;
-
-            if (!DA.GetData(0, ref typeIndex)) return;
-
-            // Validate range
-            if (typeIndex < 0 || typeIndex > 7)
-            {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Type must be 0-7");
-                return;
-            }
-
-            var dataType = (OSMDataType)typeIndex;
-
-            DA.SetData(0, typeIndex);
-            DA.SetData(1, dataType.ToString());
-
-            Message = dataType.ToString();
-        }
-
-        public override GH_Exposure Exposure => GH_Exposure.secondary;
+        public override GH_Exposure Exposure => GH_Exposure.primary;
 
         protected override System.Drawing.Bitmap Icon => null;
-
-        public override Guid ComponentGuid => new Guid("29bd57b2-b79d-4f86-9721-2765da75d0bc");
     }
 }

@@ -21,6 +21,8 @@ namespace GeoDataPlugin.Components
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
             pManager.AddGenericParameter("Features", "F", "OSM features from Query component", GH_ParamAccess.list);
+            pManager.AddNumberParameter("Origin Lat", "OriginLat", "Origin latitude from Query", GH_ParamAccess.item);
+            pManager.AddNumberParameter("Origin Lon", "OriginLon", "Origin longitude from Query", GH_ParamAccess.item);
             pManager.AddBooleanParameter("Create Breps", "Breps", "Generate Brep geometry (slower, precise)", GH_ParamAccess.item, true);
             pManager.AddBooleanParameter("Create Meshes", "Meshes", "Generate Mesh geometry (faster, approximate)", GH_ParamAccess.item, false);
             pManager.AddNumberParameter("Min Height", "MinH", "Minimum building height (filter)", GH_ParamAccess.item, 0.0);
@@ -39,15 +41,18 @@ namespace GeoDataPlugin.Components
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             var wrappers = new List<GH_ObjectWrapper>();
+            double originLat = 0, originLon = 0;
             bool createBreps = true, createMeshes = false, process = true;
             double minHeight = 0, heightScale = 1.0;
 
             if (!DA.GetDataList(0, wrappers)) return;
-            if (!DA.GetData(1, ref createBreps)) return;
-            if (!DA.GetData(2, ref createMeshes)) return;
-            if (!DA.GetData(3, ref minHeight)) return;
-            if (!DA.GetData(4, ref heightScale)) return;
-            if (!DA.GetData(5, ref process)) return;
+            if (!DA.GetData(1, ref originLat)) return;
+            if (!DA.GetData(2, ref originLon)) return;
+            if (!DA.GetData(3, ref createBreps)) return;
+            if (!DA.GetData(4, ref createMeshes)) return;
+            if (!DA.GetData(5, ref minHeight)) return;
+            if (!DA.GetData(6, ref heightScale)) return;
+            if (!DA.GetData(7, ref process)) return;
 
             if (!process)
             {
@@ -63,25 +68,12 @@ namespace GeoDataPlugin.Components
 
                 // Convert OSMFeatures to Buildings
                 var buildings = new List<Building>();
-                double originLat = 0, originLon = 0;
-                bool firstFeature = true;
 
                 foreach (var wrapper in wrappers)
                 {
                     var feature = wrapper.Value as OSMFeature;
                     if (feature != null)
                     {
-                        if (firstFeature)
-                        {
-                            // Use first feature's location as origin
-                            if (feature.Geometry.Count > 0)
-                            {
-                                originLat = feature.Geometry[0].Lat;
-                                originLon = feature.Geometry[0].Lon;
-                                firstFeature = false;
-                            }
-                        }
-
                         var building = Building.FromOSMFeature(feature);
                         buildings.Add(building);
                     }
@@ -271,6 +263,6 @@ namespace GeoDataPlugin.Components
 
         protected override System.Drawing.Bitmap Icon => null;
 
-        public override Guid ComponentGuid => new Guid("bc6e30b3-ecfc-41a0-814f-fe65bf085556");
+        public override Guid ComponentGuid => new Guid("70f23144-6c2c-49ac-9a31-fbbefda1aee9");
     }
 }

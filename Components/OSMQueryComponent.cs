@@ -32,6 +32,8 @@ namespace GeoDataPlugin.Components
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
         {
             pManager.AddGenericParameter("Filtered Features", "Features", "Filtered OSM features", GH_ParamAccess.list);
+            pManager.AddNumberParameter("Origin Lat", "OriginLat", "Origin latitude for coordinate conversion", GH_ParamAccess.item);
+            pManager.AddNumberParameter("Origin Lon", "OriginLon", "Origin longitude for coordinate conversion", GH_ParamAccess.item);
             pManager.AddTextParameter("Info", "I", "Query results", GH_ParamAccess.item);
             pManager.AddIntegerParameter("Count", "N", "Number of features", GH_ParamAccess.item);
         }
@@ -89,11 +91,14 @@ namespace GeoDataPlugin.Components
                 var wrappedFeatures = features.Select(f => new GH_ObjectWrapper(f)).ToList();
 
                 DA.SetDataList(0, wrappedFeatures);
+                DA.SetData(1, dataset.OriginLat);
+                DA.SetData(2, dataset.OriginLon);
 
                 string info = $"Query Results:\n";
                 info += $"Type: {dataType}\n";
                 info += $"Total in dataset: {dataset.GetFeaturesByType(dataType).Count}\n";
                 info += $"After filtering: {features.Count}\n";
+                info += $"Origin: ({dataset.OriginLat:F6}, {dataset.OriginLon:F6})\n";
 
                 if (!string.IsNullOrWhiteSpace(tagFilter))
                 {
@@ -106,16 +111,16 @@ namespace GeoDataPlugin.Components
                 if (!string.IsNullOrWhiteSpace(nameFilter))
                     info += $"Name contains: {nameFilter}\n";
 
-                DA.SetData(1, info);
-                DA.SetData(2, features.Count);
+                DA.SetData(3, info);
+                DA.SetData(4, features.Count);
 
                 Message = $"{features.Count} {dataType}";
             }
             catch (Exception ex)
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, ex.Message);
-                DA.SetData(1, $"Error: {ex.Message}");
-                DA.SetData(2, 0);
+                DA.SetData(3, $"Error: {ex.Message}");
+                DA.SetData(4, 0);
             }
         }
 
@@ -123,6 +128,6 @@ namespace GeoDataPlugin.Components
 
         protected override System.Drawing.Bitmap Icon => null;
 
-        public override Guid ComponentGuid => new Guid("355f61ec-67c6-46f3-9231-2b57a23fa0d0");
+        public override Guid ComponentGuid => new Guid("c4a12138-25af-4fc5-a20e-07d6c919fe92");
     }
 }
