@@ -9,15 +9,15 @@ using System.Threading.Tasks;
 
 namespace GeoDataPlugin.Components
 {
-    public class OSMDataDownloader : GH_Component
+    public class UniversalOSMDownloader : GH_Component
     {
-        private BuildingDataCollection cachedData = null;
+        private OSMDataset cachedData = null;
         private string lastCacheKey = "";
         private bool isDownloading = false;
 
-        public OSMDataDownloader()
-          : base("OSM Data Download", "OSM Download",
-              "Download raw building data from OpenStreetMap (no geometry processing)",
+        public UniversalOSMDownloader()
+          : base("Universal OSM Download", "OSM All",
+              "Download ALL useful OSM data for a region (buildings, streets, parks, water, etc.)",
               "GeoData", "Data")
         {
         }
@@ -26,21 +26,21 @@ namespace GeoDataPlugin.Components
         {
             pManager.AddNumberParameter("Latitude", "Lat", "Center latitude", GH_ParamAccess.item);
             pManager.AddNumberParameter("Longitude", "Lon", "Center longitude", GH_ParamAccess.item);
-            pManager.AddNumberParameter("Radius", "R", "Radius in meters", GH_ParamAccess.item, 200.0);
+            pManager.AddNumberParameter("Radius", "R", "Radius in meters", GH_ParamAccess.item, 300.0);
             pManager.AddBooleanParameter("Download", "Run", "Execute download", GH_ParamAccess.item, false);
             pManager.AddBooleanParameter("Clear Cache", "Clear", "Clear cached data", GH_ParamAccess.item, false);
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
         {
-            pManager.AddGenericParameter("Building Data", "Data", "Raw building data collection", GH_ParamAccess.item);
-            pManager.AddTextParameter("Summary", "Info", "Data summary", GH_ParamAccess.item);
-            pManager.AddIntegerParameter("Count", "N", "Number of buildings", GH_ParamAccess.item);
+            pManager.AddGenericParameter("OSM Dataset", "Data", "Complete OSM dataset", GH_ParamAccess.item);
+            pManager.AddTextParameter("Summary", "Info", "Dataset summary", GH_ParamAccess.item);
+            pManager.AddIntegerParameter("Total Features", "N", "Total number of features", GH_ParamAccess.item);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            double lat = 0, lon = 0, radius = 200;
+            double lat = 0, lon = 0, radius = 300;
             bool download = false, clear = false;
 
             if (!DA.GetData(0, ref lat)) return;
@@ -60,12 +60,11 @@ namespace GeoDataPlugin.Components
                 return;
             }
 
-            // Return cached data if available
             if (cachedData != null && cacheKey == lastCacheKey)
             {
                 DA.SetData(0, new GH_ObjectWrapper(cachedData));
-                DA.SetData(1, "✓ Cached Data\n" + cachedData.GetSummary());
-                DA.SetData(2, cachedData.Buildings.Count);
+                DA.SetData(1, "✓ Cached Dataset\n" + cachedData.GetSummary());
+                DA.SetData(2, cachedData.Features.Count);
                 return;
             }
 
@@ -75,11 +74,11 @@ namespace GeoDataPlugin.Components
                 {
                     DA.SetData(0, new GH_ObjectWrapper(cachedData));
                     DA.SetData(1, "✓ Cached\n" + cachedData.GetSummary());
-                    DA.SetData(2, cachedData.Buildings.Count);
+                    DA.SetData(2, cachedData.Features.Count);
                 }
                 else
                 {
-                    DA.SetData(1, "Set Download=True to fetch building data from OpenStreetMap");
+                    DA.SetData(1, "Set Download=True to fetch ALL OSM data:\n• Buildings\n• Streets\n• Parks\n• Water bodies\n• Railways\n• Land use\n• Amenities");
                     DA.SetData(2, 0);
                 }
                 return;
@@ -87,15 +86,20 @@ namespace GeoDataPlugin.Components
 
             if (isDownloading)
             {
-                DA.SetData(1, "Downloading... Please wait.");
+                DA.SetData(1, "Downloading all OSM data... Please wait.");
                 return;
             }
 
-            // Validate inputs
             if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Invalid coordinates");
                 return;
+            }
+
+            if (radius > 1000)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning,
+                    "Large radius (>1000m) may timeout. Consider smaller area.");
             }
 
             try
@@ -107,43 +111,33 @@ namespace GeoDataPlugin.Components
 
                 Message = "Downloading...";
 
-                var task = Task.Run(async () => await OverpassService.GetBuildingsAsync(bbox));
+                var task = Task.Run(async () => await UniversalOSMService.DownloadAllDataAsync(bbox));
 
-                if (!task.Wait(TimeSpan.FromSeconds(65)))
+                if (!task.Wait(TimeSpan.FromSeconds(120)))
                 {
                     throw new Exception("Download timeout. Try reducing radius.");
                 }
 
-                var buildings = task.Result;
+                var dataset = task.Result;
 
                 stopwatch.Stop();
 
-                if (buildings.Count == 0)
+                if (dataset.Features.Count == 0)
                 {
-                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "No buildings found");
-                    DA.SetData(1, "No buildings found in this area");
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "No data found");
+                    DA.SetData(1, "No OSM data found in this area");
                     DA.SetData(2, 0);
                     return;
                 }
 
-                // Create data collection
-                var dataCollection = new BuildingDataCollection
-                {
-                    Buildings = buildings,
-                    OriginLat = lat,
-                    OriginLon = lon,
-                    BoundingBox = bbox,
-                    DownloadTime = DateTime.Now
-                };
-
-                cachedData = dataCollection;
+                cachedData = dataset;
                 lastCacheKey = cacheKey;
 
-                DA.SetData(0, new GH_ObjectWrapper(dataCollection));
-                DA.SetData(1, $"✓ Downloaded in {stopwatch.ElapsedMilliseconds}ms\n" + dataCollection.GetSummary());
-                DA.SetData(2, buildings.Count);
+                DA.SetData(0, new GH_ObjectWrapper(dataset));
+                DA.SetData(1, $"✓ Downloaded in {stopwatch.ElapsedMilliseconds}ms\n" + dataset.GetSummary());
+                DA.SetData(2, dataset.Features.Count);
 
-                Message = $"{buildings.Count} buildings";
+                Message = $"{dataset.Features.Count} features";
             }
             catch (Exception ex)
             {
@@ -162,6 +156,6 @@ namespace GeoDataPlugin.Components
 
         protected override System.Drawing.Bitmap Icon => null;
 
-        public override Guid ComponentGuid => new Guid("AEDF3B70-2640-41E8-BADA-813A9080BD13");
+        public override Guid ComponentGuid => new Guid("4AF85A84-B6DD-4446-98B4-47B9F35312E2");
     }
 }
